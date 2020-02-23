@@ -1,0 +1,6 @@
+database:
+  mongo: 'mongodb://mongo1:27017,mongo2:27017,mongo3:27017/repository_ins?replicaSet=rs0'
+serve:
+  port: 3000
+registry:
+  path: 'http://localhost:8082'

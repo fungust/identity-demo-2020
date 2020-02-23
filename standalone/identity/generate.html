@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../applications/common/css/bootstrap.min.css">
+  <link rel="stylesheet" href="../../applications/common/css/app.css">
+
+  <title>Generate Identity</title>
+
+</head>
+
+<body>
+
+  <div class="container">
+    <div class="row align-items-center" style="height: 100%">
+      <div class="col-12">
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="generate" type="button" class="btn btn-danger">Generate new Identity</button>
+          </div>
+          <div class="col text-center">
+            <button id="download" class="btn btn-primary disabled">Download identity</button>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Your public identity is:</label>
+            <textarea class="form-control" id="publicKey" rows="8" readonly></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../applications/common/js/jquery-3.2.1.min.js"></script>
+  <script src="../../applications/common/js/popper.min.js"></script>
+  <script src="../../applications/common/js/bootstrap.min.js"></script>
+  <script src="../../applications/common/js/utils.js"></script>
+
+  <script>
+    function downloadFile(data, fileName, type = "text/plain") {
+      const a = document.createElement("a");
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.href = window.URL.createObjectURL(
+        new Blob([data], { type })
+      );
+      a.setAttribute("download", fileName);
+      a.click();
+      window.URL.revokeObjectURL(a.href);
+      document.body.removeChild(a);
+    }
+
+    let keyData = null;
+    let publicKey = null;
+
+    $("#generate").on("click", () => {
+      $("#generate").addClass('disabled');
+      $("#generate").off('click');
+      $("#generate").html('Generating Identity...');
+      // actual key generation
+      // this is an identity key so let's be really safe about it in terms of key length and hash choice
+      window.crypto.subtle.generateKey(
+        {
+          name: "RSA-PSS",
+          modulusLength: 4096,
+          publicExponent: new Uint8Array([1, 0, 1]),
+          hash: { name: "SHA-512" },
+        },
+        true,
+        ["sign", "verify"]
+      )
+        .then((key) => {
+          keyData = key;
+          exportKey(key, 'public')
+            .then((data) => {
+              publicKey = data;
+              $("#publicKey").html(data);
+              $("#generate").html('Identity Generated!');
+              $("#download").removeClass('disabled');
+            }).catch((err) => {
+              $("#generate").html('An error occured, refresh and try again');
+            });
+        })
+        .catch((err) => {
+          $("#generate").html('An error occured, refresh and try again');
+        });
+    });
+
+    $("#download").on("click", () => {
+      if (!publicKey) { return }
+      $("#download").html('Generating identity file...');
+      exportKey(keyData, 'private')
+        .then((data) => {
+          $("#download").html('Initiating download');
+          downloadFile(JSON.stringify({ private: data, public: publicKey }), `identity-${(new Date()).toISOString()}.json`);
+          $("#download").html('Key downloaded');
+          $("#download").addClass('disabled');
+          $("#download").off('click');
+        }).catch((err) => {
+          $("#download").html('An error occured, refresh and try again');
+        });
+    });
+
+  </script>
+</body>
+
+</html>

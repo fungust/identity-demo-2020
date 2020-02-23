@@ -1,0 +1,38 @@
+version: '3'
+services: 
+  mongo1:
+    image: mongo
+    command: mongod --replSet rs0
+    # volumes:
+    #   - ./identityCluster/mongo1:/data/db
+  mongo2:
+    image: mongo
+    command: mongod --replSet rs0
+    # volumes:
+    #   - ./identityCluster/mongo2:/data/db
+    depends_on:
+      - mongo1
+  mongo3:
+    image: mongo
+    command: mongod --replSet rs0
+    # volumes:
+    #   - ./identityCluster/mongo3:/data/db
+    depends_on:
+      - mongo2
+  mongoClient:
+    image: mongo
+    restart: 'no'
+    volumes:
+      - ./deployment_scripts:/deployment_scripts
+    command: 
+      - /deployment_scripts/init_db.sh
+    depends_on:
+      - mongo3
+  app:
+    image: identhospitalapp
+    restart: always
+    build: .
+    ports:
+      - '8080:3000'
+    depends_on:
+      - mongoClient

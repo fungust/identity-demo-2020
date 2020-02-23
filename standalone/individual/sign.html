@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <link rel="stylesheet" href="../../applications/common/css/bootstrap.min.css">
+  <link rel="stylesheet" href="../../applications/common/css/app.css">
+
+  <title>Sign Artefact</title>
+</head>
+
+<body>
+
+  <div class="container">
+    <div class="row align-items-center" style="height: 100%">
+      <div class="col-12">
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="import" type="button" class="btn btn-danger">Import Identity</button>
+            <input id="importFilePath" type="file" style="display: none;" />
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Your Digital ID is:</label>
+            <textarea class="form-control" id="publicKey" rows="8" readonly></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Enter Artefact ID to sign:</label>
+            <textarea class="form-control" id="artefactID" rows="2" readonly></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="sign" type="button" class="btn btn-primary disabled">Sign</button>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>The signature for the artefact ID is below:</label>
+            <textarea class="form-control" id="signature" rows="8" readonly></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../applications/common/js/jquery-3.2.1.min.js"></script>
+  <script src="../../applications/common/js/popper.min.js"></script>
+  <script src="../../applications/common/js/bootstrap.min.js"></script>
+  <script src="../../applications/common/js/utils.js"></script>
+
+  <script>
+    let key = null;
+
+    $("#import").on("click", () => {
+      $('#importFilePath').trigger('click');
+    });
+
+    $('#importFilePath').change((evt) => {
+      importKeyFile(evt.target.files[0])
+        .then(({ privateKey, keyData }) => {
+          $("#import").html('Keyfile loaded');
+          $("#import").addClass('disabled');
+          $("#import").off('click');
+          $("#publicKey").html(keyData.public);
+          $("#artefactID").removeAttr('readonly');
+          $("#sign").removeClass('disabled');
+          key = privateKey;
+        })
+        .catch((err) => {
+          $("#import").html('An error occured, refresh and try again');
+          key = null;
+        })
+    })
+
+    $("#sign").on("click", () => {
+      if (!key) { return }
+      signHashed(key, $("#artefactID").val())
+        .then((signature) => {
+          $("#signature").html(signature);
+        })
+        .catch((err) => {
+          $("#sign").html('An error occured, refresh and try again');
+        })
+    });
+
+  </script>
+</body>
+
+</html>

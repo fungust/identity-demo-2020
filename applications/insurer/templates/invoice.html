@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="container">
+  <div class="row align-items-center" style="height: 100%">
+    <div class="jumbotron" style="width: 100%">
+      <h1 class="display-4">Invoice Validator</h1>
+      <p class="lead">Fill in the details below to check the authenticity of an invoice</p>
+      <hr class="my-4">
+
+      <div class="col-12">
+        <label>Search registry for Invoice Issuer:</label>
+        <div class="input-group mb-3">
+
+          <input type="text" class="form-control" placeholder="Invoice Issuer" aria-label="Invoice Issuer"
+            id="invoiceIssuer" aria-describedby="basic-addon2">
+          <div class="input-group-append">
+            <button class="btn btn-outline-secondary" type="button" id="search">Search</button>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Invoice issuer ID in system:</label>
+            <textarea class="form-control" id="issuerDID" rows="8" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Invoice Number:</label>
+            <input class="form-control" id="invoiceNumber" placeholder="Enter invoice number">
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Invoice amount exactly as shown on invoice:</label>
+            <input class="form-control" id="invoiceAmount" placeholder="Enter invoice amount">
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Invoice Certificate:</label>
+            <textarea class="form-control" id="invoiceCert" rows="8"></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Insured Individual Digital ID:</label>
+            <textarea class="form-control" id="individualDID" rows="8"></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="verify" type="button" class="btn btn-primary">Verify</button>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Verification status:</label>
+            <textarea class="form-control" id="status" rows="2" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="approve" type="button" class="btn btn-warning disabled">Mark invoice as approved</button>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  let nonce = null;
+  let valid = false;
+  let invoiceCert = null;
+
+  function verifyHash(cert) {
+    return new Promise((resolve, reject) => {
+      let invoiceNum = $("#invoiceNumber").val();
+      let invoiceAmt = $("#invoiceAmount").val();
+      let individualDID = $("#individualDID").val();
+
+      sha256(`${invoiceNum}${parseFloat(invoiceAmt).toFixed(2)}${individualDID}${cert.nonce}`)
+        .then((result) => {
+          if (result == cert.artefact) {
+            resolve();
+          } else {
+            reject('hashError');
+          };
+        })
+        .catch((err) => {
+          reject('hashError');
+        });
+    });
+  }
+
+  function checkRegistered(cert) {
+    return new Promise((resolve, reject) => {
+      $.post("{{registryPath}}/api/ephemeral/find", {
+        id: cert.artefact
+      })
+        .done((msg) => {
+          if (msg) {
+            reject('artefactError')
+          } else {
+            resolve()
+          };
+        })
+        .fail((xhr, status, error) => {
+          reject('artefactError')
+        })
+    })
+  }
+
+  async function performVerification() {
+    // parse invoice certificate
+    let cert = null;
+    try {
+      cert = JSON.parse($('#invoiceCert').val());
+      if ((typeof cert.artefact != 'string') || (typeof cert.patient != 'string') || (typeof cert.hospital != 'string') || (typeof cert.nonce != 'number')) {
+        throw 'invalid'
+      };
+      invoiceCert = cert;
+    } catch (err) {
+      valid = false;
+      $('#status').html('Invoice certificate appears invalid');
+      $('#status').removeClass('text-success');
+      $('#status').addClass('text-danger');
+      return
+    }
+
+
+    try {
+      // verify artefact hash
+      await verifyHash(cert);
+      // verify individual signature
+      await verifySignature($("#individualDID").val(), cert.artefact, cert.patient);
+      await verifySignature($("#issuerDID").val(), cert.artefact, cert.hospital);
+      // check if artefact has already been registered
+      await checkRegistered(cert);
+    } catch (err) {
+      valid = false;
+      switch (err) {
+        case 'hashError':
+          $('#status').html('Invoice information does not appear valid');
+          $('#status').removeClass('text-success');
+          $('#status').addClass('text-danger');
+          break;
+        case 'artefactError':
+          $('#status').html('Invoice has passed all cryptographic checks and is valid. It HAS been registered before.');
+          $('#status').removeClass('text-success');
+          $('#status').addClass('text-danger');
+          break;
+        default:
+          $('#status').html('Invoice signatures do not appear valid');
+          $('#status').removeClass('text-success');
+          $('#status').addClass('text-danger');
+          break;
+      }
+      return
+    };
+
+    valid = true;
+    $('#status').html('Invoice has passed all cryptographic checks and is valid. It has not been registered before. Please register is if it is approved.');
+    $('#status').addClass('text-success');
+    $('#status').removeClass('text-danger');
+    $("#approve").removeClass('disabled');
+  }
+
+
+  $("#verify").on("click", () => {
+    performVerification();
+  });
+
+  $("#search").on("click", () => {
+    $.post("{{registryPath}}/api/entity/find", {
+      name: $('#invoiceIssuer').val()
+    })
+      .done((msg) => {
+        $('#issuerDID').html(msg);
+      })
+      .fail((xhr, status, error) => {
+        $('#issuerDID').html('Not found');
+      })
+  });
+
+  $("#approve").on("click", () => {
+    if (!valid) { return }
+    $.post("{{registryPath}}/api/ephemeral/register", {
+      id: invoiceCert.artefact
+    })
+      .done((msg) => {
+        if (msg == invoiceCert.artefact) {
+          $("#approve").html('Approval recorded!');
+          $("#approve").off('click');
+        } else {
+          $("#approve").html('Approval recording failed! Please try again');
+        }
+      })
+      .fail((xhr, status, error) => {
+        $("#approve").html('Approval recording failed! Please try again');
+      })
+  });
+
+
+</script>
+
+{% endblock %}

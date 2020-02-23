@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="container">
+  <div class="row align-items-center" style="height: 100%">
+    <div class="jumbotron" style="width: 100%">
+      <h1 class="display-4">Welcome!</h1>
+      <p class="lead">There is current no identity loaded. To proceed, please load an identity key that belongs to you.
+      </p>
+      <hr class="my-4">
+      <div class="row align-items-center" style="height: 100%">
+        <div class="col-12">
+          <div class="row align-items-center row-space">
+            <div class="col text-center">
+              <button id="import" type="button" class="btn btn-danger">Import Identity</button>
+              <input id="importFilePath" type="file" style="display: none;" />
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+            <div class="col">
+              <label>Identity loaded:</label>
+              <textarea class="form-control" id="publicKey" rows="8" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <hr class="my-4">
+      <h1 class="lead">Register with the registry for better identity trust</h1>
+      <div class="row align-items-center" style="height: 100%">
+        <div class="col-12">
+          <div class="row align-items-center row-space">
+            <div class="col">
+              <label>Entity Name</label>
+              <input class="form-control" id="entityName" placeholder="Provide your Entity Name" readonly>
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+            <div class="col">
+              <label>Enter your OTP provided by the registry</label>
+              <input class="form-control" id="otp" placeholder="Enter OTP" readonly>
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+            <div class="col text-center">
+              <button id="register" type="button" class="btn btn-success disabled">Register your identity!</button>
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+            <div class="col">
+              <label>Status</label>
+              <textarea class="form-control" id="status" rows="2" readonly></textarea>
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  let publicKey = null;
+
+  $("#import").on("click", () => {
+    $('#importFilePath').trigger('click');
+  });
+
+  $('#importFilePath').change((evt) => {
+    importKeyFile(evt.target.files[0])
+      .then(({ privateKey, keyData }) => {
+        publicKey = keyData.public;
+        $("#register").removeClass('disabled');
+        $("#otp").removeAttr('readonly');
+        $("#entityName").removeAttr('readonly');
+
+        $("#publicKey").html(keyData.public);
+        $("#import").html('Keyfile loaded');
+        $("#import").addClass('disabled');
+        $("#import").off('click');
+        $.post("/api/loadKey", keyData);
+      })
+      .catch((err) => {
+        console.log(err)
+        $("#import").html('An error occured, refresh and try again');
+      })
+  });
+
+  $("#register").on("click", () => {
+    let otp = $('#otp').val();
+    let name = $('#entityName').val();
+    if ((!publicKey) || (name == '') || (otp == '')) { return }
+    $.post("{{registryPath}}/api/entity/new", {
+      otp,
+      name,
+      identity: publicKey
+    })
+      .done((msg) => {
+        if (msg == 'Registration Successful') {
+          $("#register").off("click")
+          $("#register").addClass('disabled');
+        };
+        $('#status').html(msg);
+      })
+      .fail((xhr, status, error) => {
+        $('#status').html('Error: Please check if entity name is already registered');
+      })
+  });
+
+</script>
+
+{% endblock %}

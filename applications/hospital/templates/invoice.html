@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="container">
+  <div class="row align-items-center" style="height: 100%">
+    <div class="jumbotron" style="width: 100%">
+      <h1 class="display-4">Invoice Certificate Generator</h1>
+      <p class="lead">Fill in the details below to generate a certificate for the patient!</p>
+      <hr class="my-4">
+
+      <div class="col-12">
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Identity in system:</label>
+            <textarea class="form-control" id="publicKey" rows="8" readonly>{{publicKey}}</textarea>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Enter Invoice Number:</label>
+            <input class="form-control" id="invoiceNumber" placeholder="Enter invoice number">
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Enter Invoice amount exactly as shown on invoice:</label>
+            <input class="form-control" id="invoiceAmount" placeholder="Enter invoice amount">
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Enter patient Digital ID:</label>
+            <textarea class="form-control" id="patientDigitalID" rows="8"></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Please ask patient to sign the following Artefact ID:</label>
+            <textarea class="form-control" id="artefactID" rows="2" readonly></textarea>
+          </div>
+        </div>
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Enter patient Artefact Signature:</label>
+            <textarea class="form-control" id="patientSignature" rows="8"></textarea>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col text-center">
+            <button id="verify" type="button" class="btn btn-primary">Verify and Generate</button>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+          <div class="col">
+            <label>Please include the following certificate of authenticity on the invoice:</label>
+            <textarea class="form-control" id="certificate" rows="8" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="row align-items-center row-space">
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  let nonce = null;
+
+  function generateCertificate() {
+    $.post('/api/sign', { value: $("#artefactID").val() }, (signature) => {
+      let data = {
+        artefact: $("#artefactID").val(),
+        patient: $("#patientSignature").val(),
+        hospital: signature,
+        nonce
+      };
+      $('#certificate').html(JSON.stringify(data))
+    });
+  };
+
+  function updateArtefactID() {
+    let invoiceNum = $("#invoiceNumber").val();
+    let invoiceAmt = $("#invoiceAmount").val();
+    let patientID = $("#patientDigitalID").val();
+    if ((invoiceNum != '') && (invoiceAmt != '') && (patientID != '')) {
+      nonce = Date.now();
+      sha256(`${invoiceNum}${parseFloat(invoiceAmt).toFixed(2)}${patientID}${nonce}`)
+        .then((result) => {
+          $("#artefactID").html(result);
+        })
+        .catch((err) => {
+          console.log(err)
+        });
+    };
+  }
+
+  $("#invoiceNumber").change((evt) => {
+    updateArtefactID();
+  });
+
+  $("#invoiceAmount").change((evt) => {
+    updateArtefactID();
+  });
+
+  $("#patientDigitalID").change((evt) => {
+    updateArtefactID();
+  });
+
+  $("#verify").on("click", () => {
+    verifySignature($("#patientDigitalID").val(), $("#artefactID").val(), $("#patientSignature").val())
+      .then(() => {
+        $("#verify").html('Signature successfully verified');
+        generateCertificate();
+      })
+      .catch((err) => {
+        $("#verify").html('Signature is invalid, try again');
+      });
+  });
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="container">
+  <div class="row align-items-center" style="height: 100%">
+    <div class="jumbotron" style="width: 100%">
+      <h1 class="display-4">Welcome to the OTP faucet!</h1>
+      <p class="lead">This page generates an OTP for you to register your public key with the registry.
+      </p>
+      <hr class="my-4">
+      <div class="row align-items-center" style="height: 100%">
+        <div class="col-12">
+          <div class="row align-items-center row-space">
+            <div class="col text-center">
+              <button id="generate" type="button" class="btn btn-danger">Generate OTP!</button>
+            </div>
+          </div>
+          <div class="row align-items-center row-space">
+            <div class="col">
+              <label id="otpLabel"></label>
+              <textarea class="form-control" id="otp" rows="2" readonly></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+  $('#generate').on("click", () => {
+    $.get('/api/register', (data) => {
+      $('#otp').html(data)
+      $('#otpLabel').html(`OTP will expire at ${(new Date(Date.now() + 3600000)).toISOString()}`)
+    })
+  });
+
+</script>
+
+{% endblock %}
